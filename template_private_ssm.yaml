@@ -221,13 +221,13 @@ Resources:
         - !Ref EC2InstanceRole
 
   # ==========================================
-  # 7. EC2 Instance (Private Subnet 1) with Dynamic AMI
+  # 7. EC2 Instance (Private Subnet 1) with Dynamic AMI (resolve syntax)
   # ==========================================
   MyEC2Instance:
     Type: AWS::EC2::Instance
     Properties:
-      # 最新のAmazon Linux 2023 AMIをSSMパラメータストアから自動取得
-      ImageId: !Sub '${AWS::SSM::Parameter::Value--aws::service::ami-amazon-linux-latest::al2023-ami-kernel-default-x86_64}'
+      # パラメータストアから最新のAmazon Linux 2023 AMI IDを動的取得
+      ImageId: '{{resolve:ssm:/aws/service/ami-amazon-linux-latest/al2023-ami-kernel-default-x86_64}}'
       InstanceType: t3.micro
       SubnetId: !Ref PrivateSubnet1
       IamInstanceProfile: !Ref EC2InstanceProfile
