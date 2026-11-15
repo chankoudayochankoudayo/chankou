@@ -15,7 +15,7 @@ Resources:
       EnableDnsSupport: true
       Tags:
         - Key: Name
-          Value: DemoVpc
+          Value: Private-SSM-Instance-Updated  # ← ここを変更してみる
 
   DemoSubnet:
     Type: AWS::EC2::Subnet
@@ -26,14 +26,14 @@ Resources:
       AvailabilityZone: !Select [0, !GetAZs '']
       Tags:
         - Key: Name
-          Value: DemoSubnet
+          Value: Private-SSM-Instance-Updated  # ← ここを変更してみる
 
   DemoInternetGateway:
     Type: AWS::EC2::InternetGateway
     Properties:
       Tags:
         - Key: Name
-          Value: DemoIGW
+          Value: Private-SSM-Instance-Updated  # ← ここを変更してみる
 
   AttachGateway:
     Type: AWS::EC2::VPCGatewayAttachment
@@ -92,7 +92,7 @@ Resources:
           echo "SUCCESS: Text content read via SSM Run Command!" > /tmp/data.txt
       Tags:
         - Key: Name
-          Value: TargetEc2
+          Value: Private-SSM-Instance-Updated  # ← ここを変更してみる
 
   LambdaExecutionRole:
     Type: AWS::IAM::Role
