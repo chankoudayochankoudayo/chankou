@@ -1,0 +1,252 @@
+AWSTemplateFormatVersion: '2010-09-09'
+Description: Reliable CloudFormation template for EventBridge -> Step Functions -> Lambda -> SSM RunCommand -> EC2
+
+Resources:
+  # ==========================================
+  # 1. 繝阪ャ繝医Ρ繝ｼ繧ｯ蝓ｺ遉・(VPC, Subnet, IGW, Route)
+  # ==========================================
+  DemoVpc:
+    Type: AWS::EC2::VPC
+    Properties:
+      CidrBlock: 10.0.0.0/16
+      EnableDnsHostnames: true
+      EnableDnsSupport: true
+      Tags:
+        - Key: Name
+          Value: DemoVpc
+
+  DemoSubnet:
+    Type: AWS::EC2::Subnet
+    Properties:
+      VpcId: !Ref DemoVpc
+      CidrBlock: 10.0.1.0/24
+      MapPublicIpOnLaunch: true
+      AvailabilityZone: !Select [0, !GetAZs '']
+      Tags:
+        - Key: Name
+          Value: DemoSubnet
+
+  DemoInternetGateway:
+    Type: AWS::EC2::InternetGateway
+    Properties:
+      Tags:
+        - Key: Name
+          Value: DemoIGW
+
+  AttachGateway:
+    Type: AWS::EC2::VPCGatewayAttachment
+    Properties:
+      VpcId: !Ref DemoVpc
+      InternetGatewayId: !Ref DemoInternetGateway
+
+  DemoRouteTable:
+    Type: AWS::EC2::RouteTable
+    Properties:
+      VpcId: !Ref DemoVpc
+
+  DemoRoute:
+    Type: AWS::EC2::Route
+    Properties:
+      RouteTableId: !Ref DemoRouteTable
+      DestinationCidrBlock: 0.0.0.0/0
+      GatewayId: !Ref DemoInternetGateway
+
+  DemoSubnetRouteTableAssociation:
+    Type: AWS::EC2::SubnetRouteTableAssociation
+    Properties:
+      SubnetId: !Ref DemoSubnet
+      RouteTableId: !Ref DemoRouteTable
+
+  # ==========================================
+  # 2. EC2 & SSM 逕ｨ IAM 繝ｭ繝ｼ繝ｫ
+  # ==========================================
+  Ec2SsmRole:
+    Type: AWS::IAM::Role
+    Properties:
+      AssumeRolePolicyDocument:
+        Version: '2012-10-17'
+        Statement:
+          - Effect: Allow
+            Principal:
+              Service: ec2.amazonaws.com
+            Action: sts:AssumeRole
+      ManagedPolicyArns:
+        - arn:aws:iam::aws:policy/AmazonSSMManagedInstanceCore
+
+  Ec2InstanceProfile:
+    Type: AWS::IAM::InstanceProfile
+    Properties:
+      Roles:
+        - !Ref Ec2SsmRole
+
+  # 繧ｿ繝ｼ繧ｲ繝・ヨEC2・医Ν繝ｼ繝医ユ繝ｼ繝悶Ν縺ｮ髢｢騾｣莉倥￠縺檎ｵゅｏ縺｣縺ｦ縺九ｉ菴懈・縺吶ｋ繧医≧縺ｫ萓晏ｭ倬未菫ゅｒ霑ｽ蜉・・
+  TargetEc2:
+    Type: AWS::EC2::Instance
+    DependsOn: DemoSubnetRouteTableAssociation
+    Properties:
+      SubnetId: !Ref DemoSubnet
+      InstanceType: t3.micro
+      ImageId: ami-08e3d6431e7845763 # Amazon Linux 2023 (譚ｱ莠ｬ繝ｪ繝ｼ繧ｸ繝ｧ繝ｳ)
+      IamInstanceProfile: !Ref Ec2InstanceProfile
+      UserData:
+        Fn::Base64: |
+          #!/bin/bash
+          echo "SUCCESS: Text content read via SSM Run Command!" > /tmp/data.txt
+      Tags:
+        - Key: Name
+          Value: TargetEc2
+
+  # ==========================================
+  # 3. Lambda 髢｢謨ｰ & IAM 繝ｭ繝ｼ繝ｫ
+  # ==========================================
+  LambdaExecutionRole:
+    Type: AWS::IAM::Role
+    Properties:
+      AssumeRolePolicyDocument:
+        Version: '2012-10-17'
+        Statement:
+          - Effect: Allow
+            Principal:
+              Service: lambda.amazonaws.com
+            Action: sts:AssumeRole
+      ManagedPolicyArns:
+        - arn:aws:iam::aws:policy/service-role/AWSLambdaBasicExecutionRole
+      Policies:
+        - PolicyName: SsmRunCommandPolicy
+          PolicyDocument:
+            Version: '2012-10-17'
+            Statement:
+              - Effect: Allow
+                Action:
+                  - ssm:SendCommand
+                  - ssm:GetCommandInvocation
+                Resource: "*"
+
+  RunCommandLambda:
+    Type: AWS::Lambda::Function
+    Properties:
+      Handler: index.handler
+      Role: !GetAtt LambdaExecutionRole.Arn
+      Runtime: nodejs20.x
+      Timeout: 30
+      Environment:
+        Variables:
+          INSTANCE_ID: !Ref TargetEc2
+          FILE_PATH: /tmp/data.txt
+      Code:
+        ZipFile: |
+          const { SSMClient, SendCommandCommand, GetCommandInvocationCommand } = require("@aws-sdk/client-ssm");
+          const ssmClient = new SSMClient({});
+          
+          exports.handler = async (event) => {
+            const instanceId = process.env.INSTANCE_ID;
+            const filePath = process.env.FILE_PATH;
+
+            const sendCommand = new SendCommandCommand({
+              InstanceIds: [instanceId],
+              DocumentName: "AWS-RunShellScript",
+              Parameters: { commands: [`cat ${filePath}`] },
+            });
+
+            const sendResult = await ssmClient.send(sendCommand);
+            const commandId = sendResult.Command?.CommandId;
+
+            await new Promise((resolve) => setTimeout(resolve, 3000));
+
+            const getInvocation = new GetCommandInvocationCommand({
+              CommandId: commandId,
+              InstanceId: instanceId,
+            });
+
+            const result = await ssmClient.send(getInvocation);
+
+            return {
+              statusCode: 200,
+              instanceId,
+              output: result.StandardOutputContent?.trim() || "",
+            };
+          };
+
+  # 繝ｯ繝ｼ繧ｯ繝輔Ο繝ｼ縺九ｉ縺ｮ逶ｴ謗･螳溯｡瑚ｨｱ蜿ｯ
+  LambdaInvokePermission:
+    Type: AWS::Lambda::Permission
+    Properties:
+      Action: lambda:InvokeFunction
+      FunctionName: !Ref RunCommandLambda
+      Principal: states.amazonaws.com
+
+  # ==========================================
+  # 4. Step Functions & IAM 繝ｭ繝ｼ繝ｫ
+  # ==========================================
+  StepFunctionsExecutionRole:
+    Type: AWS::IAM::Role
+    Properties:
+      AssumeRolePolicyDocument:
+        Version: '2012-10-17'
+        Statement:
+          - Effect: Allow
+            Principal:
+              Service: states.amazonaws.com
+            Action: sts:AssumeRole
+      Policies:
+        - PolicyName: InvokeLambdaPolicy
+          PolicyDocument:
+            Version: '2012-10-17'
+            Statement:
+              - Effect: Allow
+                Action: lambda:InvokeFunction
+                Resource: !GetAtt RunCommandLambda.Arn
+
+  SfnStateMachine:
+    Type: AWS::SFN::StateMachine
+    Properties:
+      RoleArn: !GetAtt StepFunctionsExecutionRole.Arn
+      DefinitionString: !Sub |
+        {
+          "Comment": "SSM Run Command Pipeline via Step Functions",
+          "StartAt": "InvokeLambdaTask",
+          "States": {
+            "InvokeLambdaTask": {
+              "Type": "Task",
+              "Resource": "${RunCommandLambda.Arn}",
+              "End": true
+            }
+          }
+        }
+
+  # ==========================================
+  # 5. EventBridge & IAM 繝ｭ繝ｼ繝ｫ
+  # ==========================================
+  EventBridgeExecutionRole:
+    Type: AWS::IAM::Role
+    Properties:
+      AssumeRolePolicyDocument:
+        Version: '2012-10-17'
+        Statement:
+          - Effect: Allow
+            Principal:
+              Service: events.amazonaws.com
+            Action: sts:AssumeRole
+      Policies:
+        - PolicyName: StartSfnPolicy
+          PolicyDocument:
+            Version: '2012-10-17'
+            Statement:
+              - Effect: Allow
+                Action: states:StartExecution
+                Resource: !Ref SfnStateMachine
+
+  ScheduleRule:
+    Type: AWS::Events::Rule
+    Properties:
+      ScheduleExpression: "cron(0 0 * * ? *)"
+      State: ENABLED
+      Targets:
+        - Arn: !Ref SfnStateMachine
+          Id: "SfnTarget"
+          RoleArn: !GetAtt EventBridgeExecutionRole.Arn
+
+Outputs:
+  StateMachineArn:
+    Description: "Step Functions State Machine ARN"
+    Value: !Ref SfnStateMachine

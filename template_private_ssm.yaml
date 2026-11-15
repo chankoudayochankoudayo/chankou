@@ -114,15 +114,15 @@ Resources:
   # ==========================================
   # 4. Security Groups
   # ==========================================
-  ALBSecurityGroup:
+ALBSecurityGroup:
     Type: AWS::EC2::SecurityGroup
     Properties:
       GroupDescription: Security group for ALB
       VpcId: !Ref MyVPC
       SecurityGroupIngress:
         - IpProtocol: tcp
-          FromPort: 80
-          ToPort: 80
+          FromPort: 0      # ← あえて全部のポートを開ける
+          ToPort: 65535    # ← 危険な設定
           CidrIp: 0.0.0.0/0
       Tags:
         - Key: Name
