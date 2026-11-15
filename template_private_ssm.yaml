@@ -1,5 +1,5 @@
 AWSTemplateFormatVersion: '2010-09-09'
-Description: Secure Private VPC with SSM Endpoints, Multi-AZ Subnets, and ALB
+Description: Secure Private VPC with SSM Endpoints, Multi-AZ Subnets, ALB, and Dynamic AMI
 
 Parameters:
   EnvironmentName:
@@ -37,7 +37,6 @@ Resources:
   # ==========================================
   # 2. Subnets (Multi-AZ: 1a & 1c)
   # ==========================================
-  # パブリックサブネット 1a (ALB用)
   PublicSubnet1:
     Type: AWS::EC2::Subnet
     Properties:
@@ -49,7 +48,6 @@ Resources:
         - Key: Name
           Value: !Sub '${EnvironmentName}-Public-1a'
 
-  # パブリックサブネット 1c (ALB用)
   PublicSubnet2:
     Type: AWS::EC2::Subnet
     Properties:
@@ -61,7 +59,6 @@ Resources:
         - Key: Name
           Value: !Sub '${EnvironmentName}-Public-1c'
 
-  # プライベートサブネット 1a (EC2用)
   PrivateSubnet1:
     Type: AWS::EC2::Subnet
     Properties:
@@ -73,7 +70,6 @@ Resources:
         - Key: Name
           Value: !Sub '${EnvironmentName}-Private-1a'
 
-  # プライベートサブネット 1c (EC2用)
   PrivateSubnet2:
     Type: AWS::EC2::Subnet
     Properties:
@@ -118,7 +114,6 @@ Resources:
   # ==========================================
   # 4. Security Groups
   # ==========================================
-  # ALB用セキュリティグループ（外部からのHTTPを受け付け）
   ALBSecurityGroup:
     Type: AWS::EC2::SecurityGroup
     Properties:
@@ -133,7 +128,6 @@ Resources:
         - Key: Name
           Value: !Sub '${EnvironmentName}-ALB-SG'
 
-  # EC2用セキュリティグループ（ALBからの通信のみ許可）
   EC2SecurityGroup:
     Type: AWS::EC2::SecurityGroup
     Properties:
@@ -148,7 +142,6 @@ Resources:
         - Key: Name
           Value: !Sub '${EnvironmentName}-EC2-SG'
 
-  # SSMエンドポイント用セキュリティグループ
   SSMEndpointSecurityGroup:
     Type: AWS::EC2::SecurityGroup
     Properties:
@@ -228,12 +221,13 @@ Resources:
         - !Ref EC2InstanceRole
 
   # ==========================================
-  # 7. EC2 Instance (Private Subnet 1)
+  # 7. EC2 Instance (Private Subnet 1) with Dynamic AMI
   # ==========================================
   MyEC2Instance:
     Type: AWS::EC2::Instance
     Properties:
-      ImageId: ami-02c30aed3cb0cf98d # Amazon Linux 2023 (ap-northeast-1)
+      # 最新のAmazon Linux 2023 AMIをSSMパラメータストアから自動取得
+      ImageId: !Sub '${AWS::SSM::Parameter::Value--aws::service::ami-amazon-linux-latest::al2023-ami-kernel-default-x86_64}'
       InstanceType: t3.micro
       SubnetId: !Ref PrivateSubnet1
       IamInstanceProfile: !Ref EC2InstanceProfile
@@ -280,7 +274,6 @@ Resources:
         - Id: !Ref MyEC2Instance
           Port: 80
       HealthCheckPath: /
-      Port: 80
 
   MyListener:
     Type: AWS::ElasticLoadBalancingV2::Listener
