@@ -8,11 +8,19 @@ jobs:
   deploy:
     runs-on: ubuntu-latest
     steps:
-      - name: Checkout code
-        uses: actions/checkout@v4
+# ==========================================
+      # 🛡️ 【新規追加】Checkovによるセキュリティ自動監査
+      # ==========================================
+      - name: Run Checkov Security Scanner
+        uses: bridgecrewio/checkov-action@master
+        with:
+          # 対象となるCloudFormationテンプレートファイルを指定
+          file: template_private_ssm.yaml
+          # soft_fail: false にすることで、セキュリティ違反が見つかった場合にビルドを強制ストップさせます
+          soft_fail: false
 
       - name: Configure AWS Credentials
-        uses: aws-actions/configure-aws-credentials@v4
+        uses: aws-actions/configure-aws-credentials@v2
         with:
           aws-access-key-id: ${{ secrets.AWS_ACCESS_KEY_ID }}
           aws-secret-access-key: ${{ secrets.AWS_SECRET_ACCESS_KEY }}
