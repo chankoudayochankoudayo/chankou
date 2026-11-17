@@ -7,6 +7,11 @@ Parameters:
     Default: PrivateSsmEnv
     Description: Environment name for resource naming
 
+# 【追加】HTTPS化に必須となるACM証明書のARNを外部から受け取る
+  CertificateArn:
+    Type: String
+    Description: "The ARN of the ACM Certificate for HTTPS (e.g. arn:aws:acm:ap-northeast-1:123456789012:certificate/...)"
+
 Resources:
   # ==========================================
   # 1. VPC & Internet Gateway
@@ -121,8 +126,8 @@ Resources:
       VpcId: !Ref MyVPC
       SecurityGroupIngress:
         - IpProtocol: tcp
-          FromPort: 80
-          ToPort: 80
+          FromPort: 443
+          ToPort: 443
           CidrIp: 0.0.0.0/0
       Tags:
         - Key: Name
@@ -140,7 +145,7 @@ Resources:
           SourceSecurityGroupId: !Ref ALBSecurityGroup
       Tags:
         - Key: Name
-          Value: !Sub '${EnvironmentName}-EC2-SG'
+          Value: !Sub '${EnvironmentName}-ALB-SG'
 
   SSMEndpointSecurityGroup:
     Type: AWS::EC2::SecurityGroup
