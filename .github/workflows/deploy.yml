@@ -30,18 +30,10 @@ jobs:
           aws-secret-access-key: ${{ secrets.AWS_SECRET_ACCESS_KEY }}
           aws-region: ap-northeast-1
 
-      - name: Deploy CloudFormation Stack
-        uses: aws-actions/aws-cloudformation-github-deploy@v1
-        with:
-          name: PrivateSsmStack
-          template: template_private_ssm.yaml
-          capabilities: CAPABILITY_NAMED_IAM
-          # 【追加】テンプレートのパラメータに値を渡す
-          - name: Deploy CloudFormation Stack
-        uses: aws-actions/aws-cloudformation-github-deploy@v1
-        with:
-          name: PrivateSsmStack
-          template: template_private_ssm.yaml
-          capabilities: CAPABILITY_NAMED_IAM
-          # 【テスト用ダミーARNを指定】
-          parameter-overrides: "CertificateArn=arn:aws:acm:ap-northeast-1:123456789012:certificate/12345678-1234-1234-1234-123456789012"
+- name: Deploy CloudFormation Stack
+      uses: aws-actions/aws-cloudformation-github-deploy@v1
+      with:
+        name: PrivateSsmStack
+        template: template_private_ssm.yaml
+        capabilities: CAPABILITY_NAMED_IAM
+        parameter-overrides: "CertificateArn=arn:aws:acm:ap-northeast-1:123456789012:certificate/12345678-1234-1234-1234-123456789012"
