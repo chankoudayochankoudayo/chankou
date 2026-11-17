@@ -288,6 +288,43 @@ Resources:
       DefaultActions:
         - Type: forward
           TargetGroupArn: !Ref MyTargetGroup
+          
+          # 【新規追加】ポート443（HTTPS）のメインリスナー
+  MyHttpsListener:
+    Type: AWS::ElasticLoadBalancingV2::Listener
+    Properties:
+      LoadBalancerArn: !Ref MyALB
+      Port: 443
+      Protocol: HTTPS
+      # 【追加】金融機関基準の強固なTLSポリシー（TLS 1.2以上を強制）を指定
+      SslPolicy: ELBSecurityPolicy-TLS13-1-2-2021-06
+      Certificates:
+        - CertificateArn: !Ref CertificateArn
+      DefaultActions:
+        - Type: forward
+          TargetGroupArn: !Ref MyTargetGroup
+      Certificates:
+        - CertificateArn: !Ref CertificateArn
+      DefaultActions:
+        - Type: forward
+          TargetGroupArn: !Ref MyTargetGroup
+
+  # 【新規追加】ポート80（HTTP）をポート443（HTTPS）へ強制リダイレクトするリスナー
+  MyHttpRedirectListener:
+    Type: AWS::ElasticLoadBalancingV2::Listener
+    Properties:
+      LoadBalancerArn: !Ref MyALB
+      Port: 80
+      Protocol: HTTP
+      DefaultActions:
+        - Type: redirect
+          RedirectConfig:
+            Protocol: HTTPS
+            Port: '443'
+            StatusCode: HTTP_301
+            Host: '#{host}'
+            Path: '/#{path}'
+            Query: '#{query}'
 
 Outputs:
   ALBDnsName:
